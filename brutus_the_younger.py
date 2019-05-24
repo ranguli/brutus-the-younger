@@ -1,9 +1,9 @@
 #!/usr/bin/env/python
 from prettytable import PrettyTable
 from itertools import permutations
+from nltk.corpus import words
 import pprint
 import click
-from colorama import Fore
 
 class Brutus(object):
 
@@ -15,6 +15,29 @@ class Brutus(object):
         'U','V','W','X','Y','Z'
     ]
 
+    def all_substrings(string):
+        j = 2
+        a = [] 
+
+        # Genereate all possible substrings of a string, including the original
+        a.append(string)
+        if (len(string) != 1):
+            while True:
+                for i in range(len(string) - j+1):
+                    a.append(string[i:i+j])
+                if j == len(string):
+                    break
+                j += 1
+        return a
+
+    """ Check all generated substrings to see if they are English """
+    def find_english_strings(a):
+        real_words = []
+        for element in a:
+            if (len(element) > 3) and (element.lower() in words.words()):
+                real_words.append(element)
+        return real_words
+    
     """ Returns a ciruclar list, useful for wrapping alphabets"""
     # Accepts x, the starting slice integer (0 for entire phrase + wrapping)
     # List, the list/string in question
@@ -118,7 +141,31 @@ class Brutus(object):
         result = list(filter(None, result ))
         return result 
 
-    def vigenere(message, mode, key):
+
+    @click.command()
+    @click.option('--list_ciphers', '--lc', '-lc', required=False, default=False, help="Lists supported ciphers")
+    @click.option('--delimiter', '--d', '-d', required=False, default=False, help="Delimiter character")
+    @click.option('--key', '--k', '-k', required=False, help="Key for ciphers that require it")
+    @click.option('--mode', '--m', '-m', required=False, help="Whether to encrypt or decrypt")
+    @click.option('--cipher', '--c', '-c', required=True, type=click.Choice(supported_ciphers), help="Cipher type to use")
+    @click.option('--shift', '--s', '-s', required=False, default=None, help='Shift value to use. Accepts integers or "all"')
+    @click.option('--message', '--M', '-M', required=True, help="Message input")
+    @click.option('--cipher_alphabet', '--ca', '-ca', required=False, help='Supply a ciphertext alphabet for a simple substituion cipher')
+
+    def brutus(list_ciphers, mode, cipher, shift, message, cipher_alphabet, delimiter, key):
+        if (list_ciphers):
+            print(supported_ciphers)
+        elif (cipher == 'rot'):
+            Rot.main(message, mode, shift)
+        elif (cipher == 'alphasub'):
+            alphabet_substitution(message, cipher_alphabet)
+        elif (cipher == 'vigenere'):
+            Vigenere.encrypt(message, mode, key)
+        elif (cipher == 'morse'):
+            morse(message, mode, delimiter)
+
+class Vigenere(Brutus):
+    def encrypt(message, mode, key):
         message = message.upper()
         message.strip()
 
@@ -135,24 +182,24 @@ class Brutus(object):
                 # Keys that are shorter than the message must be repeated until they are
                 # of equal length
                 if (len(key) < len(message)):
-                    key = word_wrap(key, len(message))
+                    key = Brutus.word_wrap(key, len(message))
             
                 # Set each column as a letter of the alphabet
-                for x in alphabet: 
+                for x in Brutus.alphabet: 
                     vigenere_table.add_column(x, [])    
 
                 # Fill each row with a shifted alphabet based on the key. This will become
                 # our lookup table for enciphering.
-                result.insert(0, alphabet) 
+                result.insert(0, Brutus.alphabet) 
                 for c in key:
-                    vigenere_table.add_row(alphabet_wrap(alphabet.index(c), alphabet))
-                    result.append(alphabet_wrap(alphabet.index(c), alphabet))
+                    vigenere_table.add_row(Brutus.alphabet_wrap(Brutus.alphabet.index(c), Brutus.alphabet))
+                    result.append(Brutus.alphabet_wrap(Brutus.alphabet.index(c), Brutus.alphabet))
 
                 ciphertext = []
                 i = 0
                 for c in message:
                     # What is the location of the current letter in our alphabet?
-                    loc = alphabet.index(message[i])
+                    loc = Brutus.alphabet.index(message[i])
                     
                     # Find the letter in the same location in our key row. 
                     cipher_char = "\033[1;32;40m" + result[i+1][loc]
@@ -166,53 +213,39 @@ class Brutus(object):
 
             return ciphertext 
 
-    @click.command()
-    @click.option('--list_ciphers', '--lc', '-lc', required=False, default=False, help="Lists supported ciphers")
-    @click.option('--delimiter', '--d', '-d', required=False, default=False, help="Delimiter character")
-    @click.option('--key', '--k', '-k', required=False, help="Key for ciphers that require it")
-    @click.option('--mode', '--m', '-m', required=False, default="encrypt", help="Whether to encrypt or decrypt")
-    @click.option('--cipher', '--c', '-c', required=True, type=click.Choice(supported_ciphers), help="Cipher type to use")
-    @click.option('--shift', '--s', '-s', required=False, default=None, help='Shift value to use. Accepts integers or "all"')
-    @click.option('--message', '--M', '-M', required=True, help="Message input")
-    @click.option('--cipher_alphabet', '--ca', '-ca', required=False, help='Supply a ciphertext alphabet for a simple substituion cipher')
-
-    def brutus(list_ciphers, mode, cipher, shift, message, cipher_alphabet, delimiter, key):
-        if (list_ciphers):
-            print(supported_ciphers)
-        elif (cipher == 'rot'):
-            Rot.encrypt(message, shift)
-        elif (cipher == 'alphasub'):
-            alphabet_substitution(message, cipher_alphabet)
-        elif (cipher == 'vigenere'):
-            vigenere(message, mode, key)
-        elif (cipher == 'morse'):
-            morse(message, mode, delimiter)
-
 class Rot(Brutus):
+    def main(message, mode, shift):
+        if mode == None:
+            print("Please enter a mode with --mode encrypt|decrypt")
+        elif mode == "encrypt":
+            if (shift == None):
+                print("Please provide a shift value with --shift")
+        elif mode == "decrypt":
+            Rot.decrypt_brute_force(message)
 
-    def decrypt_brute_force():
-        print("yes")
-
-    def encrypt(message, shift):
+    def decrypt_brute_force(message):
         message = message.upper()
         result = []
-
-        if (shift == None):
-            print("Specify a shift value with --shift or --s. See --help.")
-        elif (shift == "all"):
-            for i in range (0, 26):
-                result.append(Rot.encrypt(message, i))
-        else:
+        for i in range (0, 26):
+            phrase = []
             for c in message: 
                 if c == ' ':
-                    result.append(" ")
+                    phrase.append(" ")
                 else:
                     rot_c = Brutus.ord(c)
-                    rot_c += int(shift)
-                    result.append(Brutus.chr(rot_c))
-        result = filter(None, result )
-        print(''.join(result))
+                    rot_c += int(i)
+                    phrase.append(Brutus.chr(rot_c))
+            phrase = ''.join(phrase)
+            result.append(phrase)
+            substrings = Brutus.all_substrings(phrase)
+            real_words = Brutus.find_english_strings(substrings)
+            for j in real_words:
+                if j:
+                    print("\033[1;32;40m[+]\033[1;37;40m English phrase " + "'" + j + "' " + "detected with ROT-" + str(i) + " in " + phrase)
+            #    else:
+                    #print("\033[1;37;40m[-] " + phrase)
+        #print(result)
         return str(''.join(result))
 
-brutus_the_younger = Brutus()
-brutus_the_younger.brutus()
+    #def shift(message, shift):
+    
