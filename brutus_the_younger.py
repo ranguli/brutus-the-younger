@@ -196,7 +196,6 @@ class Vigenere(Brutus):
     def decrypt_brute_force(message):
         result = []
         message = message.upper()
-        print("Trying list of keys and seeing if returned plaintext resembles english...")
         with open("words_alpha.txt") as f:
             i = 0
             for line in f.readlines():
@@ -205,16 +204,15 @@ class Vigenere(Brutus):
                 i += 1
                 if (len(line) <= len(message)):
                     string = Vigenere.decrypt(message,line,pretty_output=False)
-                    print("(" + str(i) + ") Trying key \t" + line + "\t on cipher " + message + " got result: \t" + string)
+                    #print("Trying key: \t" + line + "\t" + "Result:\t\t" + string)
                     with open("dict/" + string[0].lower() + ".txt") as g:
                         for word in g.readlines():
                             word = word.rstrip()
                             word = word.upper()
                             if string == word:
                                 result.append([line, message, string])
-                    f.close()
-
-        print(result)
+                                print("Cipher: " + message + "\t Key: " + line + "\tResult: " + string + "\t #" +str(i))
+            f.close()
         return result
 
 
