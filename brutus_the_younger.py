@@ -5,11 +5,15 @@ from itertools import permutations
 from nltk.corpus import words
 
 from subprocess import call
+import cProfile
+import time
 import pprint
 import click
 import os.path
 
 class Brutus(object):
+    alphabet_sets = []
+    wordlist = set(line.rstrip().upper() for line in open('words_alpha.txt'))
 
     supported_ciphers = ['rot','alphabet_substitution','morse', 'vigenere']
 
@@ -147,7 +151,7 @@ class Brutus(object):
                     index = alphabet.index(c)
                     c = cipher_alphabet[index]
                     result.append(c)
-        result = list(filter(None, result ))
+        result = list(filter(None, result))
         return result 
 
 
@@ -158,6 +162,10 @@ class Brutus(object):
             return False
         else:
             return True
+    
+    def is_word(string):
+        if (string[1] in Brutus.alphabet_sets[Brutus.alphabet.index(string[1][0])]):
+            return string
 
 
     @click.command()
@@ -172,6 +180,10 @@ class Brutus(object):
     @click.option('--pretty_output', '--p', '-P', required=False, default=True, help='Supply a ciphertext alphabet for a simple substituion cipher')
 
     def brutus(list_ciphers, mode, cipher, shift, message, cipher_alphabet, delimiter, key, pretty_output):
+
+        for i in Brutus.alphabet:
+            Brutus.alphabet_sets.append(set(line.rstrip().upper() for line in open("dict/" + i.lower() + ".txt")))
+
         if (list_ciphers):
             print(supported_ciphers)
         elif (cipher == 'rot'):
@@ -191,35 +203,36 @@ class Vigenere(Brutus):
         if mode == "decrypt":
             Vigenere.decrypt(message, key, pretty_output) 
         if mode == "decrypt_brute_force":
-            Vigenere.decrypt_brute_force(message ) 
+            Vigenere.decrypt_brute_force(message)
 
     def decrypt_brute_force(message):
-        result = []
+        start = time.time()
         message = message.upper()
-        with open("words_alpha.txt") as f:
-            i = 0
-            for line in f.readlines():
-                line = line.rstrip()
-                line = line.upper()
-                i += 1
-                if (len(line) <= len(message)):
-                    string = Vigenere.decrypt(message,line,pretty_output=False)
-                    #print("Trying key: \t" + line + "\t" + "Result:\t\t" + string)
-                    with open("dict/" + string[0].lower() + ".txt") as g:
-                        for word in g.readlines():
-                            word = word.rstrip()
-                            word = word.upper()
-                            if string == word:
-                                result.append([line, message, string])
-                                print("Cipher: " + message + "\t Key: " + line + "\tResult: " + string + "\t #" +str(i))
-            f.close()
+        improved_wordlist = []
+        finalists = [] 
+        # Create a smaller subset of possible matches based on length. We don't need to try comparing longer words
+        # to a shorter one because we know they can't equal each other.
+        for key in Brutus.wordlist:
+            if (len(key) <= len(message)):
+                improved_wordlist.append(key)
+        
+        improved_wordlist = set(improved_wordlist)
+
+        for key in improved_wordlist:
+            finalists.append([message, Vigenere.decrypt(message,key,pretty_output=False), key])
+
+        result = list(filter(None, map(Brutus.is_word, finalists)))
+        end = time.time()
+
+        for i in result:
+            print("Cipher " + str(i[0]) + " returned " + str(i[1]) + " with key " + str(i[2]))
+
+        print("Finished in " + str(int(end - start)) + "s.")
         return result
 
-
-
     def decrypt(message, key, pretty_output=True):
-        message = message.upper()
-        message.strip()
+        start = time.time()
+        message = message.upper().strip()
 
         result = [] 
         if pretty_output == True:
@@ -241,7 +254,7 @@ class Vigenere(Brutus):
                 key = Brutus.word_wrap(key, len(message))
 
             # Fill each row with a shifted alphabet based on the key. This will become
-            # our lookup table for deciphering.
+            # our lookup table6 for deciphering.
             for c in key:
                 if pretty_output == True:
                     vigenere_table.add_row(Brutus.alphabet_wrap(Brutus.alphabet.index(c), Brutus.alphabet))
@@ -261,6 +274,7 @@ class Vigenere(Brutus):
                 table = vigenere_table.get_string()
                 print(table)
 
+            end = time.time()
             ciphertext = ''.join(ciphertext)
             return ciphertext 
 
