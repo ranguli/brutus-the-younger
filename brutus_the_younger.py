@@ -1,21 +1,32 @@
 # -*- coding: utf-8 -*-
 #!/usr/bin/env/python
-from prettytable import PrettyTable
-from itertools import permutations
-from nltk.corpus import words
-
+import csv
 from subprocess import call
 import cProfile
 import time
+import os.path
+
 import pprint
 import click
-import os.path
+from prettytable import PrettyTable
+from itertools import permutations
+from nltk.corpus import words
+import matplotlib.pyplot as plt
+import numpy as np
 
 class Brutus(object):
     alphabet_sets = []
     wordlist = set(line.rstrip().upper() for line in open('words_alpha.txt'))
 
     supported_ciphers = ['rot','alphabet_substitution','morse', 'vigenere']
+
+    def __init__():
+        language_files = [
+            'english_mongraphs.csv', 'english_digraphs.csv', 
+            'english_trigraphs.csv', 'english_quadgraphs.csv', 
+            'english_quintgraphs.csv'
+        ]
+
 
     alphabet = [
         'A','B','C','D','E','F','G','H','I','J',
@@ -167,6 +178,58 @@ class Brutus(object):
         if (string[1] in Brutus.alphabet_sets[Brutus.alphabet.index(string[1][0])]):
             return string
 
+    def get_hist(ciphertext):
+        histogram = {} 
+        ciphertext_hist = {
+            "A": 0.0, "B": 0.0, "C": 0.0, "D": 0.0, "E": 0.0, "F": 0.0, "G": 0.0, 
+            "H": 0.0, "I": 0.0, "J": 0.0, "K": 0.0, "L": 0.0, "M": 0.0, "N": 0.0, 
+            "O": 0.0, "P": 0.0, "Q": 0.0, "R": 0.0, "S": 0.0, "T": 0.0, "U": 0.0, 
+            "V": 0.0, "W": 0.0, "X": 0.0, "Y": 0.0, "Z": 0.0
+        }
+
+        for c in ciphertext:
+            if c != ' ':
+                ciphertext_hist[c.upper()] += 1
+        total = len(ciphertext)
+        for c in ciphertext_hist:
+            ciphertext_hist[c.upper()] = (ciphertext_hist[c.upper()] / total) * 100
+
+        for key, value in Brutus.letter_frequency.items():
+            if key in ciphertext_hist:
+                histogram[key] = value
+
+        return(ciphertext_hist, histogram)
+
+    def plot_hist(ciphertext):
+
+        ciphertext_hist, histogram = Brutus.get_hist(ciphertext)
+
+        n_groups = len(Brutus.letter_frequency.values())
+
+        womenMeans = list(ciphertext_hist.values())
+        #womenMeans = (25, 32, 34, 20, 25)
+        #menMeans = (20, 35, 30, 35, 27)
+        menMeans = list(Brutus.letter_frequency.values())
+        indices = range(len(womenMeans))
+        names = list(Brutus.letter_frequency.keys())
+        # Calculate optimal width
+        width = np.min(np.diff(indices))/3.
+
+        index = np.arange(n_groups)
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.bar(indices-width/2.,womenMeans,width, align="center", color='b', label='Ciphertext Histogram')
+        ax.bar(indices+width/2.,menMeans,width,color='r', align="center", label='English Histogram')
+        ax.set_xticks(index + width / 2)
+        ax.axes.set_xticklabels(names)
+        ax.set_xlabel('Letters')
+        ax.set_ylabel('Frequency')
+
+        ax.legend()
+        plt.show()
+
+
 
     @click.command()
     @click.option('--list_ciphers', '--lc', '-lc', required=False, default=False, help="Lists supported ciphers")
@@ -264,10 +327,12 @@ class Vigenere(Brutus):
             i = 0 
             for c in message:
                 # What is the location of the current letter in its row?
-                loc = result[i].index(c)
-                # Find the letter in that same position in the alphabet
-                cipher_char = Brutus.alphabet[loc]
-                ciphertext.append(cipher_char)
+                if (c == ' '):
+                    ciphertext.append(c)
+                else:
+                    loc = result[i].index(c)
+                    cipher_char = Brutus.alphabet[loc]
+                    ciphertext.append(cipher_char)
                 i += 1
 
             if pretty_output == True:
@@ -276,6 +341,7 @@ class Vigenere(Brutus):
 
             end = time.time()
             ciphertext = ''.join(ciphertext)
+            print(ciphertext)
             return ciphertext 
 
     def encrypt(message, key, pretty_output=True):
@@ -351,7 +417,7 @@ class Rot(Brutus):
     @staticmethod
     def decrypt(message, shift_value):
         result = Rot.shift(message, shift_value)
-        print(result)
+        #print(result + "\n")
         return(result)
 
     @staticmethod
@@ -360,16 +426,8 @@ class Rot(Brutus):
         result = []
         for i in range (0, 26):
             phrase = Rot.shift(message,i)
-            result.append(phrase)
-            substrings = Brutus.all_substrings(phrase)
-            real_words = Brutus.find_english_strings(substrings)
-            for j in real_words:
-                if j:
-                    print("\033[1;32;40m[+]\033[1;37;40m English phrase " + "'" + j + "' " + "detected with ROT-" + str(i) + " in " + phrase)
-            #    else:
-                    #print("\033[1;37;40m[-] " + phrase)
-        #print(result)
-        return str(''.join(result))
+            if Brutus.is_word(phrase) is not None:
+                print(phrase)
 
     @staticmethod
     def shift(message, shift_value):
